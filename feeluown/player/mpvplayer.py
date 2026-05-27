@@ -4,6 +4,7 @@ import time
 import math
 import os
 import sys
+from typing import Callable
 
 from feeluown.mpv import (  # type: ignore
     MPV,
@@ -204,31 +205,29 @@ class MpvPlayer(AbstractPlayer):
             time.sleep(interval)
 
     def fade_in(self):
-        with self.fade_lock:
-            # skip fade-in on playing
-            if not self._mpv.pause:
-                return
+        # skip fade-in on playing
+        if not self._mpv.pause:
+            return
 
-            max_volume = self.volume
+        max_volume = self.volume
 
-            self.volume = 0
-            self._resume()
-            self.set_volume(max_volume, fade_in=True)
+        self.volume = 0
+        self._resume()
+        self.set_volume(max_volume, fade_in=True)
 
     def fade_out(self):
-        with self.fade_lock:
-            # skip fade-out on pause
-            if self._mpv.pause or self.pausing:
-                return
+        # skip fade-out on pause
+        if self._mpv.pause or self.pausing:
+            return
 
-            max_volume = self.volume
-            self.pausing = True
+        max_volume = self.volume
+        self.pausing = True
 
-            self.set_volume(max_volume, fade_in=False)
-            self._pause()
+        self.set_volume(max_volume, fade_in=False)
+        self._pause()
 
-            self.pausing = False
-            self.volume = max_volume
+        self.pausing = False
+        self.volume = max_volume
 
     def _resume(self):
         self._mpv.pause = False
@@ -240,13 +239,13 @@ class MpvPlayer(AbstractPlayer):
 
     def resume(self):
         if self.do_fade:
-            Thread(target=self.fade_in).start()
+            Thread(target=self._try_with_lock, args=[self.fade_in]).start()
         else:
             self._resume()
 
     def pause(self):
         if self.do_fade:
-            Thread(target=self.fade_out).start()
+            Thread(target=self._try_with_lock, args=[self.fade_out]).start()
         else:
             self._pause()
 
@@ -375,6 +374,20 @@ class MpvPlayer(AbstractPlayer):
 
     def __log_handler(self, loglevel, component, message):
         print("[{}] {}: {}".format(loglevel, component, message))
+
+    def _try_with_lock(self, callback: Callable):
+        """
+        Acquire the `fade_lock` and call `callback`.
+
+        If the lock was holded elsewhere, ignore the action.
+        """
+        if not self.fade_lock.acquire(blocking=False):
+            return
+
+        try:
+            callback()
+        finally:
+            self.fade_lock.release()
 
 
 # k: factor between 0 and 1, to represent tick/fade_time
