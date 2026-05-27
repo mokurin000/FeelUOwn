@@ -36,21 +36,21 @@ class MpvPlayer(AbstractPlayer):
     def __init__(
         self,
         _=None,
-        audio_device=b'auto',
+        audio_device=b"auto",
         winid=None,
         fade=False,
         fade_time_ms=500,
-        **kwargs
+        **kwargs,
     ):
         """
         :param _: keep this arg to keep backward compatibility
         """
         super().__init__(**kwargs)
         # https://github.com/cosven/FeelUOwn/issues/246
-        locale.setlocale(locale.LC_NUMERIC, 'C')
+        locale.setlocale(locale.LC_NUMERIC, "C")
         mpvkwargs = {}
         if winid is not None:
-            mpvkwargs['wid'] = winid
+            mpvkwargs["wid"] = winid
         self._version = _mpv_client_api_version()
 
         # From libmpv 0.38, libmpv is not the default vo.
@@ -58,22 +58,26 @@ class MpvPlayer(AbstractPlayer):
         # native window instead of feeluown's mpvwidget (tested on KDE+wayland).
         # On macOS, this option is optional. I believe the option is also required
         # on Windows.
-        mpvkwargs['vo'] = 'libmpv'
+        mpvkwargs["vo"] = "libmpv"
 
         # set log_handler if you want to debug
         # mpvkwargs['log_handler'] = self.__log_handler
         # mpvkwargs['msg_level'] = 'all=v'
         # the default version of libmpv on Ubuntu 18.04 is (1, 25)
-        self._mpv = MPV(input_default_bindings=True, input_vo_keyboard=True, **mpvkwargs)
+        self._mpv = MPV(
+            input_default_bindings=True, input_vo_keyboard=True, **mpvkwargs
+        )
         try:
-            _mpv_set_option_string(self._mpv.handle, b'ytdl', b'no')
+            _mpv_set_option_string(self._mpv.handle, b"ytdl", b"no")
         except:  # noqa
-            logger.info('ytdl option is not supported in this version of libmpv')
-        _mpv_set_property_string(self._mpv.handle, b'audio-device', audio_device)
+            logger.info("ytdl option is not supported in this version of libmpv")
+        _mpv_set_property_string(self._mpv.handle, b"audio-device", audio_device)
         # old version libmpv(for example: (1, 20)) should set option by using
         # _mpv_set_option_string, while newer version can use _mpv_set_property_string
         _mpv_set_option_string(
-            self._mpv.handle, b'user-agent', b'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            self._mpv.handle,
+            b"user-agent",
+            b"Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         )
 
         #: if video_format changes to None, there is no video available
@@ -81,21 +85,21 @@ class MpvPlayer(AbstractPlayer):
         self.audio_bitrate_changed = Signal()  # Optional[int], for example: 128001
 
         self._mpv.observe_property(
-            'time-pos', lambda name, position: self._on_position_changed(position)
+            "time-pos", lambda name, position: self._on_position_changed(position)
         )
         self._mpv.observe_property(
-            'duration', lambda name, duration: self._on_duration_changed(duration)
+            "duration", lambda name, duration: self._on_duration_changed(duration)
         )
         self._mpv.observe_property(
-            'video-format', lambda name, vformat: self._on_video_format_changed(vformat)
+            "video-format", lambda name, vformat: self._on_video_format_changed(vformat)
         )
         self._mpv.observe_property(
-            'audio-bitrate',
-            lambda name, bitrate: self._on_audio_bitrate_changed(bitrate)
+            "audio-bitrate",
+            lambda name, bitrate: self._on_audio_bitrate_changed(bitrate),
         )
         # self._mpv.register_event_callback(lambda event: self._on_event(event))
         self._mpv._event_callbacks.append(self._on_event)
-        logger.debug('Player initialize finished.')
+        logger.debug("Player initialize finished.")
 
         # this should always be `False` for fade=False,
         # because in that case `pause()` set status immediately
@@ -114,9 +118,9 @@ class MpvPlayer(AbstractPlayer):
 
     def play(self, media, video=True, metadata=None):
         if video is False:
-            _mpv_set_property_string(self._mpv.handle, b'vid', b'no')
+            _mpv_set_property_string(self._mpv.handle, b"vid", b"no")
         else:
-            _mpv_set_property_string(self._mpv.handle, b'vid', b'auto')
+            _mpv_set_property_string(self._mpv.handle, b"vid", b"auto")
 
         self.media_about_to_changed.emit(self._current_media, media)
         if media is None:
@@ -155,33 +159,33 @@ class MpvPlayer(AbstractPlayer):
                 else:
                     self._mpv.play(audio_url)
             else:
-                assert False, 'Unknown manifest'
+                assert False, "Unknown manifest"
         self._current_media = media
         self.media_changed.emit(media)
         if metadata is None:
             self._current_metadata = {}
         else:
             # The metadata may be set by manual or automatic
-            metadata['__setby__'] = 'manual'
+            metadata["__setby__"] = "manual"
             self._current_metadata = metadata
         self.metadata_changed.emit(self.current_metadata)
 
     def set_infinite_loop(self, on: bool):
         """Enable or disable infinite loop playback."""
         loop = "inf" if on is True else "no"
-        _mpv_set_property_string(self._mpv.handle, b'loop', bytes(loop, 'utf-8'))
+        _mpv_set_property_string(self._mpv.handle, b"loop", bytes(loop, "utf-8"))
 
     def set_play_range(self, start=None, end=None):
         if self._version >= (1, 28):
-            start_default, end_default = 'none', 'none'
+            start_default, end_default = "none", "none"
         else:
-            start_default, end_default = '0%', '100%'
+            start_default, end_default = "0%", "100%"
         start_str = str(start) if start is not None else start_default
         end_str = str(end) if end is not None else end_default
-        _mpv_set_option_string(self._mpv.handle, b'start', bytes(start_str, 'utf-8'))
+        _mpv_set_option_string(self._mpv.handle, b"start", bytes(start_str, "utf-8"))
         if start is not None:
             self.seeked.emit(start)
-        _mpv_set_option_string(self._mpv.handle, b'end', bytes(end_str, 'utf-8'))
+        _mpv_set_option_string(self._mpv.handle, b"end", bytes(end_str, "utf-8"))
 
     def set_volume(self, max_volume: int, fade_in: bool):
         # Since Python 3.11 we have high resolution time.sleep()
@@ -256,7 +260,7 @@ class MpvPlayer(AbstractPlayer):
         self._mpv.pause = True
         self.state = State.stopped
         self.play(None)
-        logger.debug('Player stopped.')
+        logger.debug("Player stopped.")
 
     @property
     def position(self):
@@ -265,7 +269,7 @@ class MpvPlayer(AbstractPlayer):
     @position.setter
     def position(self, position):
         if self._current_media:
-            self._mpv.seek(position, reference='absolute')
+            self._mpv.seek(position, reference="absolute")
             self._position = position
             self.seeked.emit(position)
         else:
@@ -304,7 +308,7 @@ class MpvPlayer(AbstractPlayer):
 
     def _on_duration_changed(self, duration):
         """listening to mpv duration change event"""
-        logger.debug('Player receive duration changed signal')
+        logger.debug("Player receive duration changed signal")
         self.duration = duration
 
     def _on_video_format_changed(self, vformat):
@@ -314,30 +318,34 @@ class MpvPlayer(AbstractPlayer):
         self.audio_bitrate_changed.emit(bitrate)
 
     def _on_event(self, event):
-        event_id = event['event_id']
+        event_id = event["event_id"]
         if event_id == MpvEventID.END_FILE:
-            reason = event['event']['reason']
-            logger.debug('Current song finished. reason: %d' % reason)
+            reason = event["event"]["reason"]
+            logger.debug("Current song finished. reason: %d" % reason)
             if self.state != State.stopped and reason != MpvEventEndFile.ABORTED:
                 self.media_finished.emit()
-                if reason == MpvEventEndFile.ERROR \
-                        and event['event']['error'] == ErrorCode.LOADING_FAILED:
+                if (
+                    reason == MpvEventEndFile.ERROR
+                    and event["event"]["error"] == ErrorCode.LOADING_FAILED
+                ):
                     self.media_loading_failed.emit()
 
         elif event_id == MpvEventID.FILE_LOADED:
             # If the media is a live streaming, this event may not be received.
             self.media_loaded.emit()
-            self.media_loaded_v2.emit({'video_format': self._mpv.video_format})
+            self.media_loaded_v2.emit({"video_format": self._mpv.video_format})
         elif event_id == MpvEventID.METADATA_UPDATE:
             metadata = dict(self._mpv.metadata or {})  # type: ignore
-            logger.debug('metadata updated to %s', metadata)
-            if self._current_metadata.get('__setby__') != 'manual':
-                self._current_metadata['__setby__'] = 'automatic'
-                mapping = Metadata({
-                    MetadataFields.title: 'title',
-                    MetadataFields.album: 'album',
-                    MetadataFields.artists: 'artist'
-                })
+            logger.debug("metadata updated to %s", metadata)
+            if self._current_metadata.get("__setby__") != "manual":
+                self._current_metadata["__setby__"] = "automatic"
+                mapping = Metadata(
+                    {
+                        MetadataFields.title: "title",
+                        MetadataFields.album: "album",
+                        MetadataFields.artists: "artist",
+                    }
+                )
                 for src, tar in mapping.items():
                     if tar in metadata:
                         value = metadata[tar]
@@ -351,22 +359,22 @@ class MpvPlayer(AbstractPlayer):
             headers = []
             for key, value in http_headers.items():
                 headers.append("{}: {}".format(key, value))
-            headers_text = ','.join(headers)
-            headers_bytes = bytes(headers_text, 'utf-8')
-            logger.info('play media with headers: %s', headers_text)
+            headers_text = ",".join(headers)
+            headers_bytes = bytes(headers_text, "utf-8")
+            logger.info("play media with headers: %s", headers_text)
             _mpv_set_option_string(
-                self._mpv.handle, b'http-header-fields', headers_bytes
+                self._mpv.handle, b"http-header-fields", headers_bytes
             )
         else:
-            _mpv_set_option_string(self._mpv.handle, b'http-header-fields', b'')
+            _mpv_set_option_string(self._mpv.handle, b"http-header-fields", b"")
 
     def _set_http_proxy(self, http_proxy):
         _mpv_set_option_string(
-            self._mpv.handle, b'http-proxy', bytes(http_proxy, 'utf-8')
+            self._mpv.handle, b"http-proxy", bytes(http_proxy, "utf-8")
         )
 
     def __log_handler(self, loglevel, component, message):
-        print('[{}] {}: {}'.format(loglevel, component, message))
+        print("[{}] {}: {}".format(loglevel, component, message))
 
 
 # k: factor between 0 and 1, to represent tick/fade_time
